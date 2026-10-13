@@ -1,0 +1,8 @@
+{
+  "name": "Remix Fikr-O-Khayal Weekly E-Paper",
+  "description": "Interactive digital e-paper reader for Fikr-O-Khayal Weekly featuring high-resolution broadsheet viewing, edition archives, zoom controls, and instant PDF download.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
