@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2, Image as ImageIcon } from 'lucide-react';
 import { PageData } from '../types.ts';
-import { PaperLoadingScreen } from './PaperLoadingScreen.tsx';
 
 interface NewspaperViewerProps {
   page: PageData;
@@ -186,16 +185,6 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
             style={{ transform: `scale(${zoomLevel})` }}
             className="transition-transform duration-200 ease-out origin-center flex items-center justify-center min-w-full min-h-full"
           >
-            {/* Loading state matching image.png */}
-            {!imageLoaded && !imageError && (
-              <div className="flex items-center justify-center w-full h-full min-h-[500px]">
-                <PaperLoadingScreen
-                  isFullScreen={false}
-                  statusText={`Loading ${page.title}...`}
-                />
-              </div>
-            )}
-
             {/* Error state fallback */}
             {imageError ? (
               <div className="flex flex-col items-center justify-center p-8 bg-[#0e172e] rounded-xl border border-white/10 text-center max-w-md">
@@ -204,18 +193,26 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
                 <p className="text-xs text-gray-500 mt-1">Please check your internet connection and reload.</p>
               </div>
             ) : (
-              <img
-                src={page.imageUrl}
-                alt={page.title}
-                referrerPolicy="no-referrer"
-                onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
-                onClick={handleQuickZoom}
-                title="Click to zoom in / reset"
-                className={`max-h-[80vh] md:max-h-[82vh] w-auto max-w-full object-contain shadow-2xl rounded-sm bg-white transition-opacity duration-200 cursor-zoom-in ${
-                  imageLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
+              <div className="relative flex items-center justify-center">
+                {/* Subtle loading spinner while high-resolution bytes download */}
+                {!imageLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-[#0B1224]/40 z-10 rounded-sm">
+                    <div className="w-9 h-9 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+                <img
+                  src={page.imageUrl}
+                  alt={page.title}
+                  referrerPolicy="no-referrer"
+                  onLoad={() => setImageLoaded(true)}
+                  onError={() => setImageError(true)}
+                  onClick={handleQuickZoom}
+                  title="Click to zoom in / reset"
+                  className={`max-h-[80vh] md:max-h-[82vh] w-auto max-w-full object-contain shadow-2xl rounded-sm bg-white transition-opacity duration-200 cursor-zoom-in ${
+                    imageLoaded ? 'opacity-100' : 'opacity-20'
+                  }`}
+                />
+              </div>
             )}
           </div>
         </div>

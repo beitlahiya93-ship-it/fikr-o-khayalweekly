@@ -116,20 +116,22 @@ export default function App() {
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
 
-  // Preload initial broadsheet and run smooth loading animation when website opens
+  // 3-second centered loading screen when website opens
   useEffect(() => {
     let isMounted = true;
+    const DURATION_MS = 3000; // Exactly 3 seconds
+    const intervalTime = 50;
+    const totalSteps = DURATION_MS / intervalTime;
+    let step = 0;
 
-    // Gradual progression while waiting for assets
-    const step1 = setTimeout(() => {
-      if (isMounted) setInitialLoadingProgress(38);
-    }, 250);
-    const step2 = setTimeout(() => {
-      if (isMounted) setInitialLoadingProgress(68);
-    }, 600);
-    const step3 = setTimeout(() => {
-      if (isMounted) setInitialLoadingProgress(88);
-    }, 950);
+    // Preload current broadsheet image in background so it displays immediately at 3.0s
+    const initialEdition =
+      allEditions[selectedDate] || allEditions['2026-10-12'] || Object.values(allEditions)[0];
+    const firstImageUrl = initialEdition?.pages[0]?.imageUrl;
+    if (firstImageUrl) {
+      const img = new Image();
+      img.src = firstImageUrl;
+    }
 
     // Fetch remote editions from Supabase if configured
     const client = getSupabaseClient();
@@ -162,45 +164,29 @@ export default function App() {
         );
     }
 
-    const initialEdition =
-      allEditions[selectedDate] || allEditions['2026-10-12'] || Object.values(allEditions)[0];
-    const firstImageUrl = initialEdition?.pages[0]?.imageUrl;
+    // Timer that steps progress smoothly over exactly 3 seconds
+    const progressTimer = setInterval(() => {
+      step++;
+      const currentPct = Math.min(100, Math.round((step / totalSteps) * 100));
+      if (isMounted) {
+        setInitialLoadingProgress(currentPct);
+      }
 
-    const finishLoading = () => {
-      if (!isMounted) return;
-      setInitialLoadingProgress(100);
-      setTimeout(() => {
+      if (step >= totalSteps) {
+        clearInterval(progressTimer);
         if (isMounted) {
+          setInitialLoadingProgress(100);
           setLoadingFadingOut(true);
           setTimeout(() => {
             if (isMounted) setIsInitialLoading(false);
-          }, 450);
+          }, 350);
         }
-      }, 350);
-    };
-
-    if (firstImageUrl) {
-      const img = new Image();
-      img.src = firstImageUrl;
-      img.onload = () => {
-        setTimeout(finishLoading, 600);
-      };
-      img.onerror = () => {
-        finishLoading();
-      };
-    } else {
-      setTimeout(finishLoading, 1000);
-    }
-
-    // Fallback timer so reader is never stuck
-    const fallbackTimer = setTimeout(finishLoading, 2800);
+      }
+    }, intervalTime);
 
     return () => {
       isMounted = false;
-      clearTimeout(step1);
-      clearTimeout(step2);
-      clearTimeout(step3);
-      clearTimeout(fallbackTimer);
+      clearInterval(progressTimer);
     };
   }, []);
 

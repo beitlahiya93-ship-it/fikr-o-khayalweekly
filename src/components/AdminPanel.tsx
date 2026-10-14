@@ -14,6 +14,9 @@ import {
   Eye,
   AlertTriangle,
   Zap,
+  Code2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { EditionData, PageData } from '../types.ts';
 import {
@@ -66,6 +69,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'upload' | 'all_papers'>('upload');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
   const [showSupabaseSettings, setShowSupabaseSettings] = useState<boolean>(false);
+  const [showSqlModal, setShowSqlModal] = useState<boolean>(false);
+  const [copiedSql, setCopiedSql] = useState<boolean>(false);
 
   // Selected edition for view/delete modal in ALL PAPERS
   const [editionActionModal, setEditionActionModal] = useState<EditionData | null>(null);
@@ -359,6 +364,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           >
             <Cloud className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Supabase</span>
+          </button>
+
+          {/* Supabase SQL Setup Button */}
+          <button
+            type="button"
+            onClick={() => setShowSqlModal(true)}
+            title="Copy Supabase SQL Setup Script for Table & Bucket"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#131D38] hover:bg-[#1a284e] text-cyan-400 border border-[#233560] flex items-center gap-1.5 cursor-pointer transition-colors"
+          >
+            <Code2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">SQL Script</span>
           </button>
 
           {/* Logout Button */}
@@ -856,6 +872,240 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* SUPABASE SQL SCRIPT MODAL */}
+      {/* ============================================================== */}
+      {showSqlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            onClick={() => setShowSqlModal(false)}
+            className="absolute inset-0 bg-black/80 modal-backdrop"
+          />
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-[#0B1224] border border-[#1A243F] rounded-2xl p-6 w-full max-w-[680px] shadow-2xl text-white z-10 flex flex-col max-h-[90vh]"
+          >
+            <button
+              onClick={() => setShowSqlModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-1.5 text-cyan-400 font-bold text-lg">
+              <Code2 className="w-5 h-5" />
+              <span>Supabase SQL Setup Script</span>
+            </div>
+            <p className="text-xs text-gray-300 mb-3">
+              Copy this SQL script and paste it into the <strong>Supabase SQL Editor</strong> and click <strong>RUN</strong>. It creates both the <strong>Table Editor</strong> table (<code className="text-emerald-400">epaper_editions</code>) and the <strong>Storage Bucket</strong> (<code className="text-emerald-400">epaper-files</code>) with full public read & upload permissions.
+            </p>
+
+            {/* Quick Steps */}
+            <div className="bg-[#070c1a] p-3 rounded-xl border border-white/5 text-[11px] text-gray-300 space-y-1 mb-3">
+              <div className="font-semibold text-emerald-400">Supabase میں استعمال کا آسان طریقہ:</div>
+              <div>1. <span className="text-white font-medium">Supabase Dashboard</span> کھولیں اور بائیں مینو سے <span className="text-cyan-300 font-medium">SQL Editor</span> پر کلک کریں۔</div>
+              <div>2. نیچے دیا گیا SQL اسکرپٹ <span className="text-white font-medium">Copy</span> کر کے وہاں <span className="text-white font-medium">Paste</span> کریں۔</div>
+              <div>3. نیچے سبز بٹن <span className="text-emerald-400 font-bold">RUN</span> پر کلک کریں۔ آپ کا Table اور Storage Bucket خود بخود بن جائے گا۔</div>
+              <div>4. پھر <span className="text-cyan-300 font-medium">Project Settings &gt; API</span> سے URL اور Anon Key لے کر ایڈمن پینل میں محفوظ کریں۔</div>
+            </div>
+
+            {/* SQL Code Box */}
+            <div className="flex-1 overflow-hidden flex flex-col bg-[#050817] border border-[#1A243F] rounded-xl p-3 min-h-[220px]">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/5 text-xs text-gray-400">
+                <span className="font-mono text-cyan-300">schema_and_storage.sql</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sql = `-- 1. CREATE STORAGE BUCKET FOR E-PAPER PAGES (40-60 KB EACH)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'epaper-files',
+  'epaper-files',
+  true,
+  10485760,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO UPDATE 
+SET public = true,
+    file_size_limit = 10485760,
+    allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+
+-- 2. STORAGE POLICIES: ALLOW PUBLIC READ & ANON UPLOADS
+DROP POLICY IF EXISTS "Public Access epaper-files" ON storage.objects;
+CREATE POLICY "Public Access epaper-files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Uploads to epaper-files" ON storage.objects;
+CREATE POLICY "Allow Uploads to epaper-files"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Updates to epaper-files" ON storage.objects;
+CREATE POLICY "Allow Updates to epaper-files"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Deletes from epaper-files" ON storage.objects;
+CREATE POLICY "Allow Deletes from epaper-files"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'epaper-files');
+
+-- 3. CREATE 'epaper_editions' TABLE IN TABLE EDITOR
+CREATE TABLE IF NOT EXISTS public.epaper_editions (
+  id TEXT PRIMARY KEY,
+  date_string TEXT NOT NULL,
+  volume TEXT,
+  urdu_volume TEXT,
+  title TEXT DEFAULT 'فکر و خیال ویکلی',
+  description TEXT,
+  pages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. ENABLE ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.epaper_editions ENABLE ROW LEVEL SECURITY;
+
+-- 5. POLICIES: ALLOW PUBLIC READING & ADMIN PUBLISHING
+DROP POLICY IF EXISTS "Allow public read access to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow public read access to epaper_editions"
+ON public.epaper_editions FOR SELECT
+USING (true);
+
+DROP POLICY IF EXISTS "Allow insert to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow insert to epaper_editions"
+ON public.epaper_editions FOR INSERT
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow update to epaper_editions"
+ON public.epaper_editions FOR UPDATE
+USING (true);
+
+DROP POLICY IF EXISTS "Allow delete to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow delete to epaper_editions"
+ON public.epaper_editions FOR DELETE
+USING (true);
+
+-- 6. SPEED OPTIMIZATION INDEXES
+CREATE INDEX IF NOT EXISTS idx_epaper_editions_date 
+ON public.epaper_editions (date_string);
+
+CREATE INDEX IF NOT EXISTS idx_epaper_editions_created_at 
+ON public.epaper_editions (created_at DESC);`;
+                    navigator.clipboard.writeText(sql).then(() => {
+                      setCopiedSql(true);
+                      onTriggerToast('Supabase SQL copied to clipboard!');
+                      setTimeout(() => setCopiedSql(false), 2000);
+                    });
+                  }}
+                  className="px-3 py-1 rounded bg-[#00A86B] hover:bg-[#00925c] text-white font-semibold flex items-center gap-1.5 cursor-pointer text-xs transition-colors shadow-sm"
+                >
+                  {copiedSql ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSql ? 'Copied!' : 'Copy SQL'}</span>
+                </button>
+              </div>
+
+              <textarea
+                readOnly
+                rows={10}
+                value={`-- 1. CREATE STORAGE BUCKET FOR E-PAPER PAGES (40-60 KB EACH)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'epaper-files',
+  'epaper-files',
+  true,
+  10485760,
+  ARRAY['image/jpeg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO UPDATE 
+SET public = true,
+    file_size_limit = 10485760,
+    allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+
+-- 2. STORAGE POLICIES: ALLOW PUBLIC READ & ANON UPLOADS
+DROP POLICY IF EXISTS "Public Access epaper-files" ON storage.objects;
+CREATE POLICY "Public Access epaper-files"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Uploads to epaper-files" ON storage.objects;
+CREATE POLICY "Allow Uploads to epaper-files"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Updates to epaper-files" ON storage.objects;
+CREATE POLICY "Allow Updates to epaper-files"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'epaper-files');
+
+DROP POLICY IF EXISTS "Allow Deletes from epaper-files" ON storage.objects;
+CREATE POLICY "Allow Deletes from epaper-files"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'epaper-files');
+
+-- 3. CREATE 'epaper_editions' TABLE IN TABLE EDITOR
+CREATE TABLE IF NOT EXISTS public.epaper_editions (
+  id TEXT PRIMARY KEY,
+  date_string TEXT NOT NULL,
+  volume TEXT,
+  urdu_volume TEXT,
+  title TEXT DEFAULT 'فکر و خیال ویکلی',
+  description TEXT,
+  pages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. ENABLE ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.epaper_editions ENABLE ROW LEVEL SECURITY;
+
+-- 5. POLICIES: ALLOW PUBLIC READING & ADMIN PUBLISHING
+DROP POLICY IF EXISTS "Allow public read access to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow public read access to epaper_editions"
+ON public.epaper_editions FOR SELECT
+USING (true);
+
+DROP POLICY IF EXISTS "Allow insert to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow insert to epaper_editions"
+ON public.epaper_editions FOR INSERT
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow update to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow update to epaper_editions"
+ON public.epaper_editions FOR UPDATE
+USING (true);
+
+DROP POLICY IF EXISTS "Allow delete to epaper_editions" ON public.epaper_editions;
+CREATE POLICY "Allow delete to epaper_editions"
+ON public.epaper_editions FOR DELETE
+USING (true);
+
+-- 6. SPEED OPTIMIZATION INDEXES
+CREATE INDEX IF NOT EXISTS idx_epaper_editions_date 
+ON public.epaper_editions (date_string);
+
+CREATE INDEX IF NOT EXISTS idx_epaper_editions_created_at 
+ON public.epaper_editions (created_at DESC);`}
+                className="w-full flex-1 bg-transparent text-[11px] font-mono text-emerald-300/90 outline-none resize-none overflow-y-auto leading-relaxed selection:bg-cyan-500 selection:text-white"
+              />
+            </div>
+
+            <div className="pt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(false)}
+                className="px-4 py-2 rounded-lg text-xs bg-white/10 hover:bg-white/15 text-white cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

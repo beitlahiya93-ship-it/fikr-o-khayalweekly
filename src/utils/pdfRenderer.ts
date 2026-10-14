@@ -30,55 +30,72 @@ function compressCanvasToTargetSize(
   targetMinKb = 40,
   targetMaxKb = 60
 ): { dataUrl: string; sizeKb: number } {
-  // Optimal standard width for sharp broadsheet text while keeping file ultra-light
-  const maxDimension = 1100;
-  let scale = 1.0;
-  if (sourceCanvas.width > maxDimension || sourceCanvas.height > maxDimension * 1.5) {
-    scale = Math.min(maxDimension / sourceCanvas.width, (maxDimension * 1.5) / sourceCanvas.height);
-  }
+  // Start with standard readable broadsheet width
+  let currentWidth = Math.min(1050, sourceCanvas.width);
+  let currentHeight = Math.round((currentWidth / sourceCanvas.width) * sourceCanvas.height);
 
-  const targetCanvas = document.createElement('canvas');
-  targetCanvas.width = Math.round(sourceCanvas.width * scale);
-  targetCanvas.height = Math.round(sourceCanvas.height * scale);
-
-  const ctx = targetCanvas.getContext('2d');
+  let canvas = document.createElement('canvas');
+  canvas.width = currentWidth;
+  canvas.height = currentHeight;
+  let ctx = canvas.getContext('2d');
   if (ctx) {
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, targetCanvas.width, targetCanvas.height);
-    ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+    ctx.fillRect(0, 0, currentWidth, currentHeight);
+    ctx.drawImage(sourceCanvas, 0, 0, currentWidth, currentHeight);
   }
 
-  // Iterative binary-step search for quality to hit ~40 to 60 KB
   let quality = 0.65;
-  let dataUrl = targetCanvas.toDataURL('image/jpeg', quality);
-  let sizeBytes = getDataUrlSizeInBytes(dataUrl);
-  let sizeKb = Number((sizeBytes / 1024).toFixed(1));
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  let sizeKb = Number((getDataUrlSizeInBytes(dataUrl) / 1024).toFixed(1));
 
-  // If too large, lower quality
-  if (sizeKb > targetMaxKb) {
-    for (let q = 0.55; q >= 0.25; q -= 0.08) {
-      const testUrl = targetCanvas.toDataURL('image/jpeg', q);
-      const testBytes = getDataUrlSizeInBytes(testUrl);
-      const testKb = Number((testBytes / 1024).toFixed(1));
-      dataUrl = testUrl;
-      sizeKb = testKb;
-      if (testKb <= targetMaxKb) break;
+  // Loop to converge within 40 KB - 60 KB target
+  for (let iter = 0; iter < 8; iter++) {
+    if (sizeKb >= targetMinKb && sizeKb <= targetMaxKb) {
+      break;
     }
-  }
 
-  // If still above 65 KB, scale down canvas slightly
-  if (sizeKb > 65) {
-    const smallerCanvas = document.createElement('canvas');
-    smallerCanvas.width = Math.round(targetCanvas.width * 0.85);
-    smallerCanvas.height = Math.round(targetCanvas.height * 0.85);
-    const sCtx = smallerCanvas.getContext('2d');
-    if (sCtx) {
-      sCtx.fillStyle = '#ffffff';
-      sCtx.fillRect(0, 0, smallerCanvas.width, smallerCanvas.height);
-      sCtx.drawImage(targetCanvas, 0, 0, smallerCanvas.width, smallerCanvas.height);
-      dataUrl = smallerCanvas.toDataURL('image/jpeg', 0.55);
-      sizeKb = Number((getDataUrlSizeInBytes(dataUrl) / 1024).toFixed(1));
+    if (sizeKb > targetMaxKb) {
+      if (quality > 0.35) {
+        quality = Math.max(0.25, quality - 0.12);
+      } else {
+        currentWidth = Math.round(currentWidth * 0.88);
+        currentHeight = Math.round(currentHeight * 0.88);
+        const nextCanvas = document.createElement('canvas');
+        nextCanvas.width = currentWidth;
+        nextCanvas.height = currentHeight;
+        const nCtx = nextCanvas.getContext('2d');
+        if (nCtx) {
+          nCtx.fillStyle = '#ffffff';
+          nCtx.fillRect(0, 0, currentWidth, currentHeight);
+          nCtx.drawImage(canvas, 0, 0, currentWidth, currentHeight);
+          canvas = nextCanvas;
+        }
+      }
+    } else if (sizeKb < targetMinKb) {
+      if (quality < 0.90) {
+        quality = Math.min(0.95, quality + 0.12);
+      } else {
+        if (currentWidth < sourceCanvas.width) {
+          currentWidth = Math.min(sourceCanvas.width, Math.round(currentWidth * 1.15));
+          currentHeight = Math.round((currentWidth / sourceCanvas.width) * sourceCanvas.height);
+          const nextCanvas = document.createElement('canvas');
+          nextCanvas.width = currentWidth;
+          nextCanvas.height = currentHeight;
+          const nCtx = nextCanvas.getContext('2d');
+          if (nCtx) {
+            nCtx.fillStyle = '#ffffff';
+            nCtx.fillRect(0, 0, currentWidth, currentHeight);
+            nCtx.drawImage(sourceCanvas, 0, 0, currentWidth, currentHeight);
+            canvas = nextCanvas;
+          }
+        } else {
+          break;
+        }
+      }
     }
+
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
+    sizeKb = Number((getDataUrlSizeInBytes(dataUrl) / 1024).toFixed(1));
   }
 
   return { dataUrl, sizeKb };
