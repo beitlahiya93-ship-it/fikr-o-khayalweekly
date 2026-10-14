@@ -42,3 +42,24 @@
 .pan-grabbing {
   cursor: grabbing;
 }
+
+@keyframes loadingPill {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(80%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw, Maximize2, Minimize2, Image as ImageIcon } from 'lucide-react';
 import { PageData } from '../types.ts';
+import { PaperLoadingScreen } from './PaperLoadingScreen.tsx';
 
 interface NewspaperViewerProps {
   page: PageData;
@@ -185,11 +186,13 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
             style={{ transform: `scale(${zoomLevel})` }}
             className="transition-transform duration-200 ease-out origin-center flex items-center justify-center min-w-full min-h-full"
           >
-            {/* Loading state skeleton */}
+            {/* Loading state matching image.png */}
             {!imageLoaded && !imageError && (
-              <div className="flex flex-col items-center justify-center p-12 text-gray-400 animate-pulse">
-                <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3" />
-                <span className="text-xs font-medium">Loading high-resolution broadsheet...</span>
+              <div className="flex items-center justify-center w-full h-full min-h-[500px]">
+                <PaperLoadingScreen
+                  isFullScreen={false}
+                  statusText={`Loading ${page.title}...`}
+                />
               </div>
             )}
 

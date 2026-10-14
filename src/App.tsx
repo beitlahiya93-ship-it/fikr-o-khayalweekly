@@ -9,6 +9,8 @@ import { ShareModal } from './components/ShareModal.tsx';
 import { AdminLoginModal } from './components/AdminLoginModal.tsx';
 import { AdminPanel } from './components/AdminPanel.tsx';
 import { Toast } from './components/Toast.tsx';
+import { PaperLoadingScreen } from './components/PaperLoadingScreen.tsx';
+import { getSupabaseClient } from './utils/supabaseClient.ts';
 
 const STORAGE_KEY = 'fikr_custom_editions_v2';
 const ADMIN_SESSION_KEY = 'fikr_admin_logged_in';
@@ -106,8 +108,101 @@ export default function App() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Initial Website Loading Screen State (Matches user's image with concentric rings & capsule bar)
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
+  const [initialLoadingProgress, setInitialLoadingProgress] = useState<number>(15);
+  const [loadingFadingOut, setLoadingFadingOut] = useState<boolean>(false);
+
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const toolbarContainerRef = useRef<HTMLDivElement>(null);
+
+  // Preload initial broadsheet and run smooth loading animation when website opens
+  useEffect(() => {
+    let isMounted = true;
+
+    // Gradual progression while waiting for assets
+    const step1 = setTimeout(() => {
+      if (isMounted) setInitialLoadingProgress(38);
+    }, 250);
+    const step2 = setTimeout(() => {
+      if (isMounted) setInitialLoadingProgress(68);
+    }, 600);
+    const step3 = setTimeout(() => {
+      if (isMounted) setInitialLoadingProgress(88);
+    }, 950);
+
+    // Fetch remote editions from Supabase if configured
+    const client = getSupabaseClient();
+    if (client) {
+      client
+        .from('epaper_editions')
+        .select('*')
+        .then(
+          ({ data, error }) => {
+            if (!error && data && data.length > 0 && isMounted) {
+              const remoteMap: Record<string, EditionData> = {};
+              data.forEach((row: any) => {
+                if (row.id && row.pages) {
+                  remoteMap[row.id] = {
+                    id: row.id,
+                    dateString: row.date_string || row.id,
+                    volume: row.volume || 'Special Issue',
+                    urduVolume: row.urdu_volume || 'شمارہ نمبر',
+                    title: 'فکر و خیال ویکلی',
+                    description: row.description || `${row.date_string} Edition`,
+                    pages: row.pages,
+                  };
+                }
+              });
+              setAllEditions((prev) => ({ ...prev, ...remoteMap }));
+              setAvailableDates((prev) => Array.from(new Set([...prev, ...Object.keys(remoteMap)])));
+            }
+          },
+          () => {}
+        );
+    }
+
+    const initialEdition =
+      allEditions[selectedDate] || allEditions['2026-10-12'] || Object.values(allEditions)[0];
+    const firstImageUrl = initialEdition?.pages[0]?.imageUrl;
+
+    const finishLoading = () => {
+      if (!isMounted) return;
+      setInitialLoadingProgress(100);
+      setTimeout(() => {
+        if (isMounted) {
+          setLoadingFadingOut(true);
+          setTimeout(() => {
+            if (isMounted) setIsInitialLoading(false);
+          }, 450);
+        }
+      }, 350);
+    };
+
+    if (firstImageUrl) {
+      const img = new Image();
+      img.src = firstImageUrl;
+      img.onload = () => {
+        setTimeout(finishLoading, 600);
+      };
+      img.onerror = () => {
+        finishLoading();
+      };
+    } else {
+      setTimeout(finishLoading, 1000);
+    }
+
+    // Fallback timer so reader is never stuck
+    const fallbackTimer = setTimeout(finishLoading, 2800);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(step1);
+      clearTimeout(step2);
+      clearTimeout(step3);
+      clearTimeout(fallbackTimer);
+    };
+  }, []);
 
   const currentEdition: EditionData =
     allEditions[selectedDate] || allEditions['2026-10-12'] || Object.values(allEditions)[0];
@@ -356,6 +451,21 @@ export default function App() {
 
       {/* F. Toast Feedback Notification */}
       <Toast message={toastMessage} />
+
+      {/* G. Initial Website Opening Loader (Replicating exact user image) */}
+      {isInitialLoading && (
+        <div
+          className={`fixed inset-0 z-50 transition-opacity duration-500 ease-out ${
+            loadingFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        >
+          <PaperLoadingScreen
+            progress={initialLoadingProgress}
+            isFullScreen={true}
+            statusText="تازہ ترین شمارہ لوڈ ہو رہا ہے · Loading Edition..."
+          />
+        </div>
+      )}
     </div>
   );
 }
