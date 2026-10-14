@@ -20,7 +20,6 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [showZoomBadge, setShowZoomBadge] = useState<boolean>(false);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [imageLoaded, setImageLoaded] = useState<boolean>(false);
   const [imageError, setImageError] = useState<boolean>(false);
 
   // Panning state
@@ -46,7 +45,7 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
 
   const handleZoomIn = () => {
     setZoomLevel((prev) => {
-      const next = Math.min(2.8, Number((prev + 0.25).toFixed(2)));
+      const next = Math.min(3.5, Number((prev + 0.25).toFixed(2)));
       return next;
     });
     triggerZoomBadge();
@@ -54,7 +53,7 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
 
   const handleZoomOut = () => {
     setZoomLevel((prev) => {
-      const next = Math.max(0.75, Number((prev - 0.25).toFixed(2)));
+      const next = Math.max(0.5, Number((prev - 0.25).toFixed(2)));
       return next;
     });
     triggerZoomBadge();
@@ -69,19 +68,39 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
   };
 
   const handleQuickZoom = () => {
-    setZoomLevel((prev) => (prev > 1.0 ? 1.0 : 1.6));
+    setZoomLevel((prev) => (prev > 1.0 ? 1.0 : 1.75));
     triggerZoomBadge();
   };
 
   // Reset zoom & scroll when page changes
   useEffect(() => {
     setZoomLevel(1.0);
-    setImageLoaded(false);
     setImageError(false);
     if (scrollWrapperRef.current) {
       scrollWrapperRef.current.scrollTo({ top: 0, left: 0 });
     }
   }, [page.imageUrl]);
+
+  // Support Ctrl + Wheel or Wheel Zoom
+  useEffect(() => {
+    const wrapper = scrollWrapperRef.current;
+    if (!wrapper) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        if (e.deltaY < 0) {
+          setZoomLevel((prev) => Math.min(3.5, Number((prev + 0.15).toFixed(2))));
+        } else {
+          setZoomLevel((prev) => Math.max(0.5, Number((prev - 0.15).toFixed(2))));
+        }
+        triggerZoomBadge();
+      }
+    };
+
+    wrapper.addEventListener('wheel', handleWheel, { passive: false });
+    return () => wrapper.removeEventListener('wheel', handleWheel);
+  }, [triggerZoomBadge]);
 
   // Fullscreen toggle
   const toggleFullscreen = () => {
@@ -193,26 +212,17 @@ export const NewspaperViewer: React.FC<NewspaperViewerProps> = ({
                 <p className="text-xs text-gray-500 mt-1">Please check your internet connection and reload.</p>
               </div>
             ) : (
-              <div className="relative flex items-center justify-center">
-                {/* Subtle loading spinner while high-resolution bytes download */}
-                {!imageLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-[#0B1224]/40 z-10 rounded-sm">
-                    <div className="w-9 h-9 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-                <img
-                  src={page.imageUrl}
-                  alt={page.title}
-                  referrerPolicy="no-referrer"
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageError(true)}
-                  onClick={handleQuickZoom}
-                  title="Click to zoom in / reset"
-                  className={`max-h-[80vh] md:max-h-[82vh] w-auto max-w-full object-contain shadow-2xl rounded-sm bg-white transition-opacity duration-200 cursor-zoom-in ${
-                    imageLoaded ? 'opacity-100' : 'opacity-20'
-                  }`}
-                />
-              </div>
+            <div className="relative flex items-center justify-center">
+              <img
+                src={page.imageUrl}
+                alt={page.title}
+                referrerPolicy="no-referrer"
+                onError={() => setImageError(true)}
+                onClick={handleQuickZoom}
+                title="Click to zoom in / reset"
+                className="max-h-[80vh] md:max-h-[82vh] w-auto max-w-full object-contain shadow-2xl rounded-sm bg-white transition-transform duration-150 cursor-zoom-in opacity-100"
+              />
+            </div>
             )}
           </div>
         </div>
